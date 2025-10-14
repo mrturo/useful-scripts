@@ -1,0 +1,4 @@
+.maven_deps_report_used.csv
+.maven_deps_report_unused.csv
+.maven_deps_last_run
+tmp/
