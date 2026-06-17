@@ -42,6 +42,11 @@ Collection of useful scripts for macOS system maintenance, Git repository manage
   - Supports report caching and execution frequency control
   - Modular design with reusable utility functions
 
+### AI Tools
+- **`ai-wibey.sh`** - Launches [Wibey CLI](https://wibey.walmart.com/cli) via `caffeinate -d -m`; auto-redirects to `~/Documents` if invoked from `$HOME`
+- **`ai-code-puppy.sh`** - Launches Code Puppy (interactive mode) via `caffeinate -d -m`; auto-redirects to `~/Documents` if invoked from `$HOME`
+- **`ai-copilot.sh`** - Launches GitHub Copilot CLI in interactive suggest mode via `caffeinate -d -m`; unsets HTTP(S) proxies before launch and disables built-in MCPs; auto-redirects to `~/Documents` if invoked from `$HOME`
+
 ## Alias Configuration
 
 To make these scripts easier to use, it's recommended to configure aliases in your `~/.zshrc` file.
@@ -86,6 +91,11 @@ alias cleanup-maven-wrapper="$HOME/Documents/scripts/cleanup_maven_wrapper.sh"
 alias firebase-emul="$HOME/Documents/scripts/firebase_emul.sh"
 alias mvnp="$HOME/Documents/scripts/mvn_proxy.sh"
 alias maven-deps-manager="$HOME/Documents/scripts/maven_deps_manager.sh --delete-unused"
+
+# AI
+alias ai-code-puppy="$HOME/Documents/scripts/ai-code-puppy.sh"
+alias ai-copilot="$HOME/Documents/scripts/ai-copilot.sh"
+alias ai-wibey="$HOME/Documents/scripts/ai-wibey.sh"
 ```
 
 ## Usage

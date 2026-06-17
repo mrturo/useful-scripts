@@ -7,6 +7,9 @@ echo "[reset_zsh_history] History file cleaned."
 
 echo "[reset_zsh_history] Preparing default commands..."
 default_commands=(
+  'ai-code-puppy'
+  'ai-copilot'
+  'ai-wibey'
   'bash envtool.sh clean-cache'
   'bash envtool.sh clean-env'
   'bash envtool.sh code-check'
@@ -24,8 +27,6 @@ default_commands=(
   'bash envtool.sh uninstall'
   'bash envtool.sh update-deps'
   'batch-repo-maintenance'
-  'caffeinate -d -m -- $HOME/.code-puppy-venv/bin/code-puppy -i'
-  'caffeinate -d -m -- zsh -c "source $HOME/Documents/scripts/unset_proxies.sh; copilot -i ''suggest'' --disable-builtin-mcps"'
   'check-maven-java-version && clean-build-artifacts && mvnp spotless:apply && mvnp compile'
   'check-maven-java-version && clean-build-artifacts'
   'check-maven-java-version'
