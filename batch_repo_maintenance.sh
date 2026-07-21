@@ -60,6 +60,9 @@ process_repo() {
   GIT_PULL_ERROR_OUTPUT=""
   SKIP_REASON=""
 
+  # Snapshot: tracked files already deleted BEFORE cleanup (intentional deletions to preserve)
+  PRE_CLEANUP_DELETED=$(git ls-files --deleted 2>/dev/null | sort || true)
+
   # Step 1: Check Maven/Java version compatibility
   "$SCRIPT_DIR/check_maven_java_version.sh" || true
 
@@ -72,7 +75,15 @@ process_repo() {
   # Step 3: Clean up Maven wrapper files
   echo "y" | "$SCRIPT_DIR/cleanup_maven_wrapper.sh" 2>/dev/null || true
 
-  # Step 4: Update all branches from remote
+  # Step 4: Restore ONLY tracked files deleted by the cleanup steps (not pre-existing intentional deletions)
+  POST_CLEANUP_DELETED=$(git ls-files --deleted 2>/dev/null | sort || true)
+  CLEANUP_DELETED=$(comm -13 <(echo "$PRE_CLEANUP_DELETED") <(echo "$POST_CLEANUP_DELETED") 2>/dev/null || true)
+  if [ -n "$CLEANUP_DELETED" ]; then
+    echo "♻️  Restoring tracked files deleted by cleanup: $(echo "$CLEANUP_DELETED" | tr '\n' ' ')"
+    echo "$CLEANUP_DELETED" | xargs git restore -- 2>/dev/null || true
+  fi
+
+  # Step 5: Update all branches from remote
   GIT_PULL_ERROR_OUTPUT=$("$SCRIPT_DIR/git_util.sh" git-pull-all 2>&1) || GIT_PULL_SUCCESS=false
 
   if [ "$GIT_PULL_SUCCESS" = false ]; then
@@ -112,7 +123,7 @@ process_repo() {
       SKIP_REASON="Unknown git error"
     fi
   else
-    # Step 5: Analyze commit age and prune stale branches
+    # Step 6: Analyze commit age and prune stale branches
     CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
 
     if [ -n "$CURRENT_BRANCH" ]; then
@@ -160,7 +171,7 @@ process_repo() {
         echo "📍 Already on $CURRENT_BRANCH branch. Proceeding with pruning..."
       fi
 
-      # Step 6: Remove local branches that no longer exist on remote
+      # Step 7: Remove local branches that no longer exist on remote
       "$SCRIPT_DIR/git_util.sh" prune-local
     fi
   fi
