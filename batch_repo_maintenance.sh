@@ -38,6 +38,9 @@ SPECIFIC_REPOS=("$REPO1")
 FAILED_GIT_PULL_NETWORK=()
 FAILED_GIT_PULL_OTHER=()
 
+# Track hosts where credentials were already cleared (avoid clearing the same host multiple times)
+CREDENTIAL_CLEARED_HOSTS=()
+
 # Function to process a single repository
 process_repo() {
   local REPO_DIR="$1"
@@ -89,8 +92,43 @@ process_repo() {
   if [ "$GIT_PULL_SUCCESS" = false ]; then
     # Check if it's a network error
     if echo "$GIT_PULL_ERROR_OUTPUT" | grep -q "Failed to fetch remotes. Check your network or remote URLs"; then
-      echo "$REPO_DIR" >> "$TMP_DIR/batch_repo_maintenance_git_pull_network_failures.tmp"
-      SKIP_REASON="Network error fetching remotes"
+      # Detect HTTP 403: expired or invalid credentials
+      if echo "$GIT_PULL_ERROR_OUTPUT" | grep -qE "returned error: 403|error: 403"; then
+        REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
+        REMOTE_HOST=$(echo "$REMOTE_URL" | sed -E 's|https?://([^/]+)/.*|\1|')
+        TOKEN_URL=$(echo "$REMOTE_URL" | sed -E 's|(https?://[^/]+).*|\1|')/settings/tokens
+
+        # Only clear credentials once per host to avoid repeated prompts
+        ALREADY_CLEARED=false
+        for h in "${CREDENTIAL_CLEARED_HOSTS[@]:-}"; do
+          [ "$h" = "$REMOTE_HOST" ] && ALREADY_CLEARED=true && break
+        done
+
+        if [ "$ALREADY_CLEARED" = false ] && [ -n "$REMOTE_HOST" ]; then
+          echo "🔑 HTTP 403 on '$REMOTE_HOST' — clearing cached credentials and retrying..."
+          printf "protocol=https\nhost=%s\n\n" "$REMOTE_HOST" | git credential reject 2>/dev/null || true
+          CREDENTIAL_CLEARED_HOSTS+=("$REMOTE_HOST")
+
+          GIT_PULL_ERROR_OUTPUT=$("$SCRIPT_DIR/git_util.sh" git-pull-all 2>&1)
+          if [ $? -eq 0 ]; then
+            GIT_PULL_SUCCESS=true
+            SKIP_REASON=""
+            echo "✅ Authentication refreshed and pull succeeded for: $REPO_DIR"
+          else
+            GIT_PULL_SUCCESS=false
+            echo "$REPO_DIR" >> "$TMP_DIR/batch_repo_maintenance_git_pull_network_failures.tmp"
+            SKIP_REASON="Authentication failed (HTTP 403) — generate a new token at: $TOKEN_URL"
+          fi
+        else
+          # Credentials already cleared for this host in a previous repo — just report
+          GIT_PULL_SUCCESS=false
+          echo "$REPO_DIR" >> "$TMP_DIR/batch_repo_maintenance_git_pull_network_failures.tmp"
+          SKIP_REASON="Authentication failed (HTTP 403) — generate a new token at: $TOKEN_URL"
+        fi
+      else
+        echo "$REPO_DIR" >> "$TMP_DIR/batch_repo_maintenance_git_pull_network_failures.tmp"
+        SKIP_REASON="Network error fetching remotes"
+      fi
     elif echo "$GIT_PULL_ERROR_OUTPUT" | grep -q "uncommitted changes"; then
       # Check if the only uncommitted file is .java-version
       UNCOMMITTED_FILES=$(git status --porcelain | awk '{print $2}')
@@ -112,7 +150,7 @@ process_repo() {
         GIT_PULL_SUCCESS=false
         SKIP_REASON="Uncommitted changes in working directory"
       fi
-    elif echo "$GIT_PULL_ERROR_OUTPUT" | grep -q "unpushed local commits"; then
+    elif echo "$GIT_PULL_ERROR_OUTPUT" | grep -qE "unpushed local commits|haven't been pushed yet|has not been pushed"; then
       echo "$REPO_DIR****Unpushed local commits" >> "$TMP_DIR/batch_repo_maintenance_git_pull_other_failures.tmp"
       SKIP_REASON="Unpushed local commits"
     elif echo "$GIT_PULL_ERROR_OUTPUT" | grep -q "no upstream configured"; then
