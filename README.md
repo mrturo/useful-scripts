@@ -24,6 +24,12 @@ Collection of useful scripts for macOS system maintenance, Git repository manage
 - `git-sync-simple` – Pull only the current branch from remote.
 - `git-merge <branch>` – Merge the specified branch into the current branch. If the branch does not exist locally, it will be checked out from remote and merged. Simple conflicts will be resolved automatically; for complex conflicts, manual resolution may be required.
 
+### Notable Commands in `ai-code-puppy.sh`
+
+- `start` (default, no args) – First runs the non-forced update flow (`update-code-puppy`) as a best-effort step: if it's blocked by the 7-day check or fails for any other reason, it's silently skipped. Either way, Code Puppy is then always launched in interactive mode.
+- `update-code-puppy` – Unsets proxies and updates Code Puppy via the official installer, but only if at least 7 days have passed since the last successful update. Otherwise, it aborts and reports how many days remain. (When invoked directly like this, it does NOT launch Code Puppy afterwards.)
+- `force-update-code-puppy` – Same update flow, but skips the 7-day check (always attempts the update). The last-update timestamp file (`.ai-code-puppy-last-update`) is only written when the update succeeds. (Does NOT launch Code Puppy afterwards.)
+
 ### Development
 - **`batch_repo_maintenance.sh`** - Batch maintenance for multiple repositories
 - **`clean_build_artifacts.sh`** - Clean build artifacts generated during software development
@@ -44,7 +50,7 @@ Collection of useful scripts for macOS system maintenance, Git repository manage
 
 ### AI Tools
 - **`ai-wibey.sh`** - Launches [Wibey CLI](https://wibey.walmart.com/cli) via `caffeinate -d -m`; auto-redirects to `~/Documents` if invoked from `$HOME`
-- **`ai-code-puppy.sh`** - Launches Code Puppy (interactive mode) via `caffeinate -d -m`; auto-redirects to `~/Documents` if invoked from `$HOME`
+- **`ai-code-puppy.sh`** - Launches Code Puppy (interactive mode) via `caffeinate -d -m`; auto-redirects to `~/Documents` if invoked from `$HOME`. Also handles Code Puppy self-updates via dedicated commands (see below).
 - **`ai-copilot.sh`** - Launches GitHub Copilot CLI in interactive suggest mode via `caffeinate -d -m`; unsets HTTP(S) proxies before launch and disables built-in MCPs; auto-redirects to `~/Documents` if invoked from `$HOME`
 
 ## Alias Configuration
@@ -94,6 +100,8 @@ alias maven-deps-manager="$HOME/Documents/scripts/maven_deps_manager.sh --delete
 
 # AI
 alias ai-code-puppy="$HOME/Documents/scripts/ai-code-puppy.sh"
+alias ai-code-puppy-update="$HOME/Documents/scripts/ai-code-puppy.sh update-code-puppy"
+alias ai-code-puppy-force-update="$HOME/Documents/scripts/ai-code-puppy.sh force-update-code-puppy"
 alias ai-copilot="$HOME/Documents/scripts/ai-copilot.sh"
 alias ai-wibey="$HOME/Documents/scripts/ai-wibey.sh"
 ```

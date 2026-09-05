@@ -9,6 +9,9 @@ echo "[reset_zsh_history] Preparing default commands..."
 default_commands=(
   'ai-code-puppy'
   'ai-copilot'
+  'ai-code-puppy'
+  'ai-code-puppy-update'
+  'ai-code-puppy-force-update'
   'ai-wibey'
   'bash envtool.sh clean-cache'
   'bash envtool.sh clean-env'
