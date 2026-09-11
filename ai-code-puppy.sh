@@ -5,6 +5,11 @@
 #   fails for any other reason, then ALWAYS launches Code Puppy afterwards
 #   via 'caffeinate -d -m -- $HOME/.code-puppy-venv/bin/code-puppy -i'.
 #   If running from home directory, redirects to ~/Documents first.
+#   Before honoring the cooldown, it also compares the installed version
+#   against the latest published release. If we're behind, it updates
+#   immediately regardless of the cooldown -- this prevents Code Puppy's
+#   own internal startup auto-updater from firing (and stalling with a
+#   timeout) because we already caught it up ourselves.
 # Commands:
 #   ./ai-code-puppy.sh                    -> update (best-effort) + start Code Puppy (default)
 #   ./ai-code-puppy.sh start              -> update (best-effort) + start Code Puppy (explicit)
@@ -60,10 +65,87 @@ recordSuccessfulUpdate() {
   echo -e "${GREEN}Last successful update date saved: ${YELLOW}${nowTs##*|}${NC}"
 }
 
+CODE_PUPPY_VENV_PYTHON="$HOME/.code-puppy-venv/bin/python"
+
+# getInstalledVersion: echoes the installed code_puppy package version, or
+# nothing if it can't be determined (missing venv, broken install, etc).
+getInstalledVersion() {
+  if [ ! -x "$CODE_PUPPY_VENV_PYTHON" ]; then
+    return 1
+  fi
+  "$CODE_PUPPY_VENV_PYTHON" -c "from code_puppy import __version__; print(__version__)" 2>/dev/null
+}
+
+# getLatestAvailableVersion: echoes the latest published version from the
+# SAME release-metadata endpoint Code Puppy's own internal auto-updater
+# checks (api/releases/latest), or nothing if unreachable/unparsable.
+getLatestAvailableVersion() {
+  local json
+  json="$(curl -skS --max-time 10 "https://puppy.walmart.com/api/releases/latest" 2>/dev/null || true)"
+  if [ -z "$json" ]; then
+    return 1
+  fi
+  if [ ! -x "$CODE_PUPPY_VENV_PYTHON" ]; then
+    return 1
+  fi
+  "$CODE_PUPPY_VENV_PYTHON" -c "
+import json, sys
+try:
+    data = json.loads(sys.stdin.read())
+    print(data.get('data', {}).get('version', ''))
+except Exception:
+    pass
+" <<<"$json"
+}
+
+# versionIsNewer LATEST CURRENT: succeeds (exit 0) only if LATEST is
+# strictly newer than CURRENT, using the same dotted-numeric comparison
+# Code Puppy's own version_checker.version_is_newer uses, so we never
+# disagree with its internal logic (no accidental downgrades either).
+versionIsNewer() {
+  local latest="$1" current="$2"
+  if [ -z "$latest" ] || [ -z "$current" ] || [ ! -x "$CODE_PUPPY_VENV_PYTHON" ]; then
+    return 1
+  fi
+  "$CODE_PUPPY_VENV_PYTHON" -c "
+import sys
+
+def as_tuple(v):
+    v = (v or '').lstrip('v')
+    try:
+        return tuple(int(x) for x in v.split('.'))
+    except (ValueError, AttributeError):
+        return None
+
+latest = as_tuple(sys.argv[1])
+current = as_tuple(sys.argv[2])
+sys.exit(0 if (latest is not None and current is not None and latest > current) else 1)
+" "$latest" "$current"
+}
+
 # runUpdatePuppy FORCE: performs the actual update steps.
 # FORCE="true" skips the 7-day validation, but the success timestamp is always recorded.
 runUpdatePuppy() {
   local force="$1"
+
+  if [ "$force" != "true" ]; then
+    # Version-mismatch override: if the installed version is actually
+    # behind the latest published release, update NOW regardless of the
+    # cooldown below. This is what stops Code Puppy's own internal
+    # startup auto-updater from kicking in and stalling on a slow
+    # dependency install (observed: "Update timed out" looping on every
+    # launch because our cooldown kept skipping the real fix while the
+    # stale binary kept re-triggering its own doomed update attempt).
+    local installedVersion latestVersion
+    installedVersion="$(getInstalledVersion || true)"
+    latestVersion="$(getLatestAvailableVersion || true)"
+
+    if versionIsNewer "$latestVersion" "$installedVersion"; then
+      echo -e "${YELLOW}Installed version (${installedVersion}) is behind the latest (${latestVersion}).${NC}"
+      echo -e "${YELLOW}Updating now, bypassing the ${UPDATE_INTERVAL_DAYS}-day cooldown, to avoid Code Puppy's own startup auto-updater stalling.${NC}"
+      force="true"
+    fi
+  fi
 
   if [ "$force" != "true" ]; then
     local elapsed
