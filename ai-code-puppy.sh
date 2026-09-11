@@ -5,11 +5,13 @@
 #   fails for any other reason, then ALWAYS launches Code Puppy afterwards
 #   via 'caffeinate -d -m -- $HOME/.code-puppy-venv/bin/code-puppy -i'.
 #   If running from home directory, redirects to ~/Documents first.
-#   Before honoring the cooldown, it also compares the installed version
-#   against the latest published release. If we're behind, it updates
-#   immediately regardless of the cooldown -- this prevents Code Puppy's
-#   own internal startup auto-updater from firing (and stalling with a
-#   timeout) because we already caught it up ourselves.
+#   The installed version is compared against the latest published
+#   release FIRST, before any cooldown logic: behind -> update right
+#   now (bypassing the cooldown, so Code Puppy's own internal startup
+#   auto-updater never gets a chance to fire and stall); already
+#   current -> skip immediately, no reinstall of the same version.
+#   The day-based cooldown is only a fallback for when that comparison
+#   is inconclusive (offline, broken venv, version API unreachable).
 # Commands:
 #   ./ai-code-puppy.sh                    -> update (best-effort) + start Code Puppy (default)
 #   ./ai-code-puppy.sh start              -> update (best-effort) + start Code Puppy (explicit)
@@ -129,21 +131,29 @@ runUpdatePuppy() {
   local force="$1"
 
   if [ "$force" != "true" ]; then
-    # Version-mismatch override: if the installed version is actually
-    # behind the latest published release, update NOW regardless of the
-    # cooldown below. This is what stops Code Puppy's own internal
-    # startup auto-updater from kicking in and stalling on a slow
-    # dependency install (observed: "Update timed out" looping on every
-    # launch because our cooldown kept skipping the real fix while the
-    # stale binary kept re-triggering its own doomed update attempt).
+    # Version check is the SOURCE OF TRUTH now, not the day-based
+    # cooldown below. If we can get a definitive answer:
+    #   - behind latest  -> update NOW, bypassing the cooldown entirely
+    #     (stops Code Puppy's own startup auto-updater from stalling on
+    #     a slow dependency install -- see commit history).
+    #   - already current -> skip, full stop. No point re-running the
+    #     whole install script every N days just to reinstall the same
+    #     version.
+    # The day-based cooldown only kicks in below as a fallback for when
+    # this comparison is inconclusive (offline, broken venv, API down).
     local installedVersion latestVersion
     installedVersion="$(getInstalledVersion || true)"
     latestVersion="$(getLatestAvailableVersion || true)"
 
-    if versionIsNewer "$latestVersion" "$installedVersion"; then
-      echo -e "${YELLOW}Installed version (${installedVersion}) is behind the latest (${latestVersion}).${NC}"
-      echo -e "${YELLOW}Updating now, bypassing the ${UPDATE_INTERVAL_DAYS}-day cooldown, to avoid Code Puppy's own startup auto-updater stalling.${NC}"
-      force="true"
+    if [ -n "$installedVersion" ] && [ -n "$latestVersion" ]; then
+      if versionIsNewer "$latestVersion" "$installedVersion"; then
+        echo -e "${YELLOW}Installed version (${installedVersion}) is behind the latest (${latestVersion}).${NC}"
+        echo -e "${YELLOW}Updating now, bypassing the ${UPDATE_INTERVAL_DAYS}-day cooldown, to avoid Code Puppy's own startup auto-updater stalling.${NC}"
+        force="true"
+      else
+        echo -e "${GREEN}Already up to date (installed: ${installedVersion}, latest: ${latestVersion}). Skipping update.${NC}"
+        return 0
+      fi
     fi
   fi
 
