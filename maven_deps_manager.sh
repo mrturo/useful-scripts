@@ -394,10 +394,10 @@ fi
 
 # Summary of repositories to scan
 
-# Si no hay repositorios para escanear, continuar con la limpieza de .m2 igualmente
+# If there are no repositories to scan, proceed with cleaning .m2 anyway
 if [ ${#REPOS_TO_SCAN[@]} -eq 0 ]; then
   echo "⚠️  No repositories to scan. Will proceed to clean .m2 repository anyway."
-  # Crear archivos temporales vacíos para simular que no hay dependencias usadas
+  # Create empty temp files to simulate that there are no used dependencies
   > "$OUTPUT_FILE"
   echo "Dependency,Version" > "$OUTPUT_FILE"
   SKIP_REPO_SCAN=true
@@ -1120,7 +1120,7 @@ echo ""
   rm -f "$TEMP_INTERSECTION"
  
 
-# Encontrar dependencias instaladas pero no usadas, excluyendo core/plugins Maven
+# Find installed but unused dependencies, excluding Maven core/plugins
 {
   echo "Dependency,Version"
   comm -23 <(sort "$TEMP_M2_FILE") <(sort "$TEMP_ALL_USED") | \
@@ -1133,14 +1133,14 @@ echo ""
         fi
       done < "$TEMP_MAVEN_CORE"
 
-      # Si es core/plugin Maven, solo eliminar versiones antiguas (no la más nueva ni las usadas)
+      # If it's a Maven core/plugin, only remove old versions (not the newest nor the used ones)
       if [ "$is_core" = true ]; then
-        # Buscar todas las versiones instaladas de este artefacto
+        # Find all installed versions of this artifact
         artifact_versions=( $(grep "^$dep," "$TEMP_M2_FILE" | cut -d',' -f2 | sort -V) )
         if [ ${#artifact_versions[@]} -eq 0 ]; then
           continue
         fi
-        # Obtener el último elemento del array de forma portable (bash 3.x compatible)
+        # Get the last element of the array in a portable way (bash 3.x compatible)
         latest_version=""
         if [ ${#artifact_versions[@]} -gt 0 ]; then
           last_idx=$((${#artifact_versions[@]} - 1))
@@ -1149,19 +1149,19 @@ echo ""
         if [ -z "$latest_version" ]; then
           continue
         fi
-        # Si la versión actual es la más nueva, o está en la lista de usadas, no borrar
+        # If the current version is the newest, or is in the used list, don't delete it
         if [ "$ver" = "$latest_version" ]; then
           continue
         fi
         if grep -q "^$dep,$ver$" "$TEMP_ALL_USED"; then
           continue
         fi
-        # Si no es la más nueva ni usada, se puede borrar
+        # If it's not the newest nor used, it can be deleted
         echo "$dep,$ver"
         continue
       fi
 
-      # Para el resto, aplicar lógica normal
+      # For the rest, apply normal logic
       is_plugin=false
       if [ "$EXCLUDE_MAVEN_PLUGINS" = true ]; then
         if [[ "$dep" =~ -plugin$ ]] || [[ "$dep" =~ -maven-plugin$ ]]; then
@@ -1540,4 +1540,4 @@ if [ -d "$TMP_DIR" ]; then
   echo ""
 fi
 
-# Eliminar posibles líneas sueltas o typos residuales
+# Remove any stray lines or residual typos

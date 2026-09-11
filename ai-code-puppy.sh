@@ -21,7 +21,7 @@ NC='\033[0m' # No Color
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAST_UPDATE_FILE="$SCRIPT_DIR/.ai-code-puppy-last-update"
-UPDATE_INTERVAL_DAYS=7
+UPDATE_INTERVAL_DAYS=4
 UPDATE_INTERVAL_SECONDS=$((UPDATE_INTERVAL_DAYS * 24 * 60 * 60))
 
 # --- Helpers ---------------------------------------------------------------
@@ -57,7 +57,7 @@ recordSuccessfulUpdate() {
   local nowTs
   nowTs="$(date +"%s|%Y-%m-%d %H:%M:%S")"
   echo "$nowTs" > "$LAST_UPDATE_FILE"
-  echo -e "${GREEN}Fecha de ultima actualizacion guardada: ${YELLOW}${nowTs##*|}${NC}"
+  echo -e "${GREEN}Last successful update date saved: ${YELLOW}${nowTs##*|}${NC}"
 }
 
 # runUpdatePuppy FORCE: performs the actual update steps.
@@ -72,24 +72,24 @@ runUpdatePuppy() {
         local remainingSeconds remainingDays
         remainingSeconds=$((UPDATE_INTERVAL_SECONDS - elapsed))
         remainingDays=$(( (remainingSeconds + 86399) / 86400 ))
-        echo -e "${YELLOW}Ya se actualizo hace menos de ${UPDATE_INTERVAL_DAYS} dias.${NC}"
-        echo -e "${YELLOW}Faltan aprox. ${remainingDays} dia(s) para la proxima actualizacion permitida.${NC}"
-        echo -e "${YELLOW}Usa './ai-code-puppy.sh force-update-code-puppy' para forzarla igualmente.${NC}"
+        echo -e "${YELLOW}Already updated less than ${UPDATE_INTERVAL_DAYS} days ago.${NC}"
+        echo -e "${YELLOW}Approx. ${remainingDays} day(s) remaining until the next update is allowed.${NC}"
+        echo -e "${YELLOW}Use './ai-code-puppy.sh force-update-code-puppy' to force it anyway.${NC}"
         return 0
       fi
     fi
   fi
 
-  echo -e "${GREEN}Desactivando proxies (unset-proxies)...${NC}"
+  echo -e "${GREEN}Disabling proxies (unset-proxies)...${NC}"
   # shellcheck source=/dev/null
   source "$SCRIPT_DIR/unset_proxies.sh" 2>/dev/null || true
 
-  echo -e "${GREEN}Actualizando Code Puppy...${NC}"
+  echo -e "${GREEN}Updating Code Puppy...${NC}"
   if curl -skSL https://puppy.walmart.com/api/releases/setup_v2 | bash; then
-    echo -e "${GREEN}Actualizacion completada exitosamente.${NC}"
+    echo -e "${GREEN}Update completed successfully.${NC}"
     recordSuccessfulUpdate
   else
-    echo -e "${RED}La actualizacion fallo. No se guardo la fecha de ultima actualizacion.${NC}"
+    echo -e "${RED}The update failed. Last update date was not saved.${NC}"
     return 1
   fi
 }
@@ -98,9 +98,9 @@ runUpdatePuppy() {
 
 case "${1:-start}" in
   start)
-    echo -e "${GREEN}Verificando actualizacion de Code Puppy antes de iniciar...${NC}"
-    # Best-effort: se ignora cualquier bloqueo (7 dias) o fallo de la actualizacion,
-    # el agente debe iniciar siempre.
+    echo -e "${GREEN}Checking Code Puppy update before starting...${NC}"
+    # Best-effort: any block (7 days) or update failure is ignored,
+    # the agent must always start.
     runUpdatePuppy "false" || true
     startCodePuppy
     ;;
@@ -111,7 +111,7 @@ case "${1:-start}" in
     runUpdatePuppy "true"
     ;;
   *)
-    echo -e "${RED}Comando desconocido: ${YELLOW}${1}${NC}"
+    echo -e "${RED}Unknown command: ${YELLOW}${1}${NC}"
     echo -e "${YELLOW}Uso:${NC} ./ai-code-puppy.sh [start|update-code-puppy|force-update-code-puppy]"
     exit 1
     ;;
